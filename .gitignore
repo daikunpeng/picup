@@ -1,2 +1,36 @@
 .aider*
 .specstory/
+
+# electron
+# Electron 构建输出
+dist/
+out/
+release/
+
+# Node 依赖
+node_modules/
+
+# 开发工具和IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 日志文件
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# 临时文件
+.tmp/
+.temp/
