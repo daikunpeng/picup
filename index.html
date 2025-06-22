@@ -15,22 +15,47 @@
       text-align: center;
       color: #4a4a4a;
     }
+    #project-container {
+      text-align: center;
+      margin-bottom: 20px;
+      padding: 10px;
+      background-color: #e9ecef;
+      border-radius: 5px;
+    }
+    #project-path {
+      font-style: italic;
+      color: #6c757d;
+    }
     #controls {
       text-align: center;
       margin-bottom: 20px;
     }
-    #import-btn {
+    #select-project-btn, #import-btn, #import-single-btn {
       padding: 10px 20px;
       font-size: 16px;
       cursor: pointer;
-      background-color: #007bff;
       color: white;
       border: none;
       border-radius: 5px;
-      transition: background-color 0.3s;
+      transition: background-color 0.3s, opacity 0.3s;
+      margin: 0 5px;
     }
-    #import-btn:hover {
+    #select-project-btn {
+      background-color: #28a745;
+    }
+    #select-project-btn:hover {
+      background-color: #218838;
+    }
+    #import-btn, #import-single-btn {
+      background-color: #007bff;
+    }
+    #import-btn:hover, #import-single-btn:hover {
       background-color: #0056b3;
+    }
+    #import-btn:disabled, #import-single-btn:disabled {
+      background-color: #6c757d;
+      cursor: not-allowed;
+      opacity: 0.65;
     }
     #image-container {
       display: grid;
@@ -55,8 +80,14 @@
 
   <h1>PicUp 智能相册</h1>
 
+  <div id="project-container">
+    <span>当前工程: </span><span id="project-path">未选择</span>
+  </div>
+
   <div id="controls">
-    <button id="import-btn">导入文件夹</button>
+    <button id="select-project-btn">创建/选择工程文件夹</button>
+    <button id="import-btn" disabled>导入文件夹</button>
+    <button id="import-single-btn" disabled>导入单张照片</button>
   </div>
   
   <div id="image-container">
