@@ -1,0 +1,28 @@
+{
+  "name": "picup",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/daikunpeng/picup.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/daikunpeng/picup/issues"
+  },
+  "homepage": "https://github.com/daikunpeng/picup#readme",
+  "devDependencies": {
+    "electron": "^36.5.0"
+  }
+}
