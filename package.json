@@ -23,9 +23,12 @@
   },
   "homepage": "https://github.com/daikunpeng/picup#readme",
   "devDependencies": {
-    "electron": "^36.5.0"
+    "electron": "^36.5.0",
+    "electron-rebuild": "^3.2.9"
   },
   "dependencies": {
-    "electron-store": "^7.0.3"
+    "better-sqlite3": "^12.0.0",
+    "electron-store": "^7.0.3",
+    "exif-parser": "^0.1.12"
   }
 }
