@@ -9,4 +9,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 文件导入
   importFolder: () => ipcRenderer.invoke('import-folder'),
   importSingleFile: () => ipcRenderer.invoke('import-single-file'),
+
+  // 设置与配置
+  openSettingsWindow: () => ipcRenderer.invoke('open-settings-window'),
+  getSettings: () => ipcRenderer.invoke('get-settings'),
+  saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
+  getApiConfig: () => ipcRenderer.invoke('get-api-config'),
+  setApiConfig: (config) => ipcRenderer.invoke('set-api-config', config),
 }); 

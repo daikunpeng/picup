@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>PicUp - 智能相册</title>
-  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -15,6 +15,9 @@
       text-align: center;
       color: #4a4a4a;
     }
+    .hidden {
+      display: none;
+    }
     #project-container {
       text-align: center;
       margin-bottom: 20px;
@@ -22,7 +25,7 @@
       background-color: #e9ecef;
       border-radius: 5px;
     }
-    #project-path {
+    #current-project-path {
       font-style: italic;
       color: #6c757d;
     }
@@ -30,7 +33,7 @@
       text-align: center;
       margin-bottom: 20px;
     }
-    #select-project-btn, #import-btn, #import-single-btn {
+    #select-project-btn, #import-folder-btn, #import-single-file-btn {
       padding: 10px 20px;
       font-size: 16px;
       cursor: pointer;
@@ -46,33 +49,99 @@
     #select-project-btn:hover {
       background-color: #218838;
     }
-    #import-btn, #import-single-btn {
+    #import-folder-btn, #import-single-file-btn {
       background-color: #007bff;
     }
-    #import-btn:hover, #import-single-btn:hover {
+    #import-folder-btn:hover, #import-single-file-btn:hover {
       background-color: #0056b3;
     }
-    #import-btn:disabled, #import-single-btn:disabled {
+    #import-folder-btn:disabled, #import-single-file-btn:disabled {
       background-color: #6c757d;
       cursor: not-allowed;
       opacity: 0.65;
     }
-    #image-container {
+    #image-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-      gap: 15px;
+      gap: 10px;
       padding: 10px;
     }
-    #image-container img {
+    .image-container {
+      position: relative;
       width: 100%;
-      height: 150px;
+      padding-top: 100%; /* 1:1 Aspect Ratio */
+      overflow: hidden;
+      border-radius: 8px;
+    }
+    .image-container img {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
       object-fit: cover;
-      border-radius: 5px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
       transition: transform 0.2s;
     }
-    #image-container img:hover {
+    .image-container:hover img {
       transform: scale(1.05);
+    }
+    #settings-container {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+    }
+    #settings-btn {
+      cursor: pointer;
+      background: none;
+      border: none;
+      width: 24px;
+      height: 24px;
+      padding: 0;
+    }
+    .status-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.5);
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 14px;
+      font-weight: bold;
+      border-radius: 8px;
+    }
+    .tooltip {
+      visibility: hidden;
+      width: 200px;
+      background-color: #555;
+      color: #fff;
+      text-align: center;
+      border-radius: 6px;
+      padding: 5px 0;
+      position: absolute;
+      z-index: 1;
+      bottom: 110%;
+      left: 50%;
+      margin-left: -100px;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .tooltip::after {
+      content: "";
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      margin-left: -5px;
+      border-width: 5px;
+      border-style: solid;
+      border-color: #555 transparent transparent transparent;
+    }
+    .image-container:hover .tooltip {
+      visibility: visible;
+      opacity: 1;
     }
   </style>
 </head>
@@ -80,19 +149,30 @@
 
   <h1>PicUp 智能相册</h1>
 
+  <div id="settings-container">
+    <button id="settings-btn" title="设置">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+    </button>
+  </div>
+
   <div id="project-container">
-    <span>当前工程: </span><span id="project-path">未选择</span>
+    <span>当前工程: </span><span id="current-project-path">未选择</span>
   </div>
 
   <div id="controls">
     <button id="select-project-btn">创建/选择工程文件夹</button>
-    <button id="import-btn" disabled>导入文件夹</button>
-    <button id="import-single-btn" disabled>导入单张照片</button>
+    <button id="import-folder-btn" disabled>导入文件夹</button>
+    <button id="import-single-file-btn" disabled>导入单张照片</button>
   </div>
   
-  <div id="image-container">
-    <!-- 图片将通过 JavaScript 动态添加到这里 -->
-  </div>
+  <main>
+    <div id="welcome-screen">
+      <p>未选择工程文件夹。请点击上方"选择工程"按钮来开始。</p>
+    </div>
+    <div id="image-grid" class="hidden">
+      <!-- Images will be dynamically inserted here -->
+    </div>
+  </main>
 
   <script src="./renderer.js"></script>
 </body>
