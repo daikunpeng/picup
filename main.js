@@ -71,6 +71,9 @@ function parseExif(filePath) {
       const timestamp = result.tags.DateTimeOriginal * 1000;
       // 格式化为 'YYYY-MM-DD HH:MM:SS'
       takenAt = new Date(timestamp).toISOString().replace('T', ' ').substring(0, 19);
+    } else {
+      // 如果没有拍摄时间，使用当前系统时间
+      takenAt = new Date().toISOString().replace('T', ' ').substring(0, 19);
     }
 
     let location = null;
@@ -83,8 +86,9 @@ function parseExif(filePath) {
 
     return { takenAt, location };
   } catch (err) {
-    // 很多文件可能没有EXIF或数据已损坏, 静默处理并返回null是安全的.
-    return { takenAt: null, location: null };
+    // 很多文件可能没有EXIF或数据已损坏，使用当前系统时间作为默认值
+    const currentTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    return { takenAt: currentTime, location: null };
   }
 }
 
@@ -276,7 +280,11 @@ ipcMain.handle('get-initial-data', () => {
   if (projectPath && fs.existsSync(projectPath)) {
     setupDatabase(projectPath);
     const rows = db.prepare('SELECT photoId, filePath, descriptionAI, status FROM photos ORDER BY createdAt DESC').all();
-    enqueuePhotos(rows.map(r => r.photoId));
+    // 只获取需要处理的图片ID
+    const pendingPhotoIds = db.prepare("SELECT photoId FROM photos WHERE status = 'pending' OR status = 'failed'").all().map(r => r.photoId);
+    if (pendingPhotoIds.length > 0) {
+      enqueuePhotos(pendingPhotoIds);
+    }
     return { projectPath, photos: rows };
   }
   return { projectPath: null, photos: [] };
@@ -296,7 +304,11 @@ ipcMain.handle('select-project-folder', async () => {
   
   setupDatabase(projectPath);
   const rows = db.prepare('SELECT photoId, filePath, descriptionAI, status FROM photos ORDER BY createdAt DESC').all();
-  enqueuePhotos(rows.map(r => r.photoId));
+  // 只获取需要处理的图片ID
+  const pendingPhotoIds = db.prepare("SELECT photoId FROM photos WHERE status = 'pending' OR status = 'failed'").all().map(r => r.photoId);
+  if (pendingPhotoIds.length > 0) {
+    enqueuePhotos(pendingPhotoIds);
+  }
   return { projectPath, photos: rows };
 });
 
