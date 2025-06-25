@@ -26,6 +26,9 @@ function setupDatabase(projectPath) {
   const dbPath = path.join(projectPath, 'database.db');
   db = new Database(dbPath);
   
+  // 设置数据库编码为 UTF-8
+  db.pragma('encoding = "UTF-8"');
+  
   const createTableSQL = `
     CREATE TABLE IF NOT EXISTS photos (
       photoId INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -172,52 +175,81 @@ ipcMain.handle('set-api-config', (event, config) => {
 async function generateDescription(filePath) {
   try {
     const apiKey = store.get('apiKey');
+    let endpointUrl = store.get('endpointUrl');
     if (!apiKey) {
       throw new Error('API Key not configured.');
     }
-
+    if (!endpointUrl || !endpointUrl.trim()) {
+      endpointUrl = 'https://api.moonshot.cn/v1/chat/completions';
+    }
     const imageBuffer = fs.readFileSync(filePath);
     const imageBase64 = imageBuffer.toString('base64');
-    const mimeType = `image/${path.extname(filePath).substring(1)}`;
-
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent?key=${apiKey}`;
-
+    const ext = path.extname(filePath).toLowerCase();
+    let mimeType = 'image/jpeg';
+    if (ext === '.png') mimeType = 'image/png';
+    else if (ext === '.webp') mimeType = 'image/webp';
+    else if (ext === '.bmp') mimeType = 'image/bmp';
+    const dataUrl = `data:${mimeType};base64,${imageBase64}`;
     const payload = {
-      contents: [{
-        parts: [
-          { text: "为这张图片生成一个简洁、客观的描述。" },
-          { inline_data: { mime_type: mimeType, data: imageBase64 } }
-        ]
-      }]
+      model: 'moonshot-v1-32k-vision-preview',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: '请用简体中文描述这张图片的主要内容，50字以内。' },
+            { type: 'image_url', image_url: { url: dataUrl } }
+          ]
+        }
+      ]
     };
-
-    const response = await axios.post(url, payload);
-    return response.data.candidates[0].content.parts[0].text;
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    };
+    console.log('[DEBUG] Moonshot API request:', { endpointUrl, payload });
+    const response = await axios.post(endpointUrl, payload, { headers });
+    console.log('[DEBUG] Moonshot API response:', response.data);
+    if (
+      response.data &&
+      response.data.choices &&
+      response.data.choices.length > 0 &&
+      response.data.choices[0].message &&
+      response.data.choices[0].message.content
+    ) {
+      return response.data.choices[0].message.content.trim();
+    } else {
+      throw new Error('Moonshot API 返回内容为空或格式异常');
+    }
   } catch (error) {
-    console.error('Error generating description:', error.response ? error.response.data : error.message);
+    console.error('[DEBUG] Error generating description:', error.response ? error.response.data : error.message);
     return null;
   }
 }
 
 async function processQueue() {
+  console.log('[DEBUG] processQueue called. Queue length:', processingQueue.length, 'isProcessing:', isProcessing);
   if (processingQueue.length === 0 || isProcessing) {
     return;
   }
   isProcessing = true;
   const { photoId, filePath } = processingQueue.shift();
+  console.log(`[DEBUG] Start processing photoId=${photoId}, filePath=${filePath}`);
 
   try {
     db.prepare("UPDATE photos SET status = 'processing' WHERE photoId = ?").run(photoId);
-    
+    console.log(`[DEBUG] Set status=processing for photoId=${photoId}`);
+    await new Promise(r => setTimeout(r, 1200));
     const description = await generateDescription(filePath);
-    
+    console.log(`[DEBUG] AI description result for photoId=${photoId}:`, description);
     if (description) {
       db.prepare("UPDATE photos SET descriptionAI = ?, status = 'completed' WHERE photoId = ?").run(description, photoId);
+      console.log(`[DEBUG] Set status=completed, descriptionAI updated for photoId=${photoId}`);
     } else {
       db.prepare("UPDATE photos SET status = 'failed' WHERE photoId = ?").run(photoId);
+      console.log(`[DEBUG] Set status=failed for photoId=${photoId}`);
     }
   } catch (error) {
-    console.error(`Failed to process photoId ${photoId}:`, error);
+    console.error(`[DEBUG] Failed to process photoId ${photoId}:`, error);
     db.prepare("UPDATE photos SET status = 'failed' WHERE photoId = ?").run(photoId);
   } finally {
     isProcessing = false;
@@ -226,13 +258,16 @@ async function processQueue() {
 }
 
 function enqueuePhotos(photoIds) {
+  console.log('[DEBUG] enqueuePhotos called with photoIds:', photoIds);
   const stmt = db.prepare("SELECT photoId, filePath FROM photos WHERE photoId = ? AND (status = 'pending' OR status = 'failed')");
   for (const photoId of photoIds) {
     const photo = stmt.get(photoId);
     if (photo && !processingQueue.some(p => p.photoId === photo.photoId)) {
       processingQueue.push(photo);
+      console.log(`[DEBUG] Photo enqueued: photoId=${photo.photoId}, filePath=${photo.filePath}`);
     }
   }
+  console.log('[DEBUG] Current processingQueue:', processingQueue.map(p => p.photoId));
   processQueue();
 }
 
