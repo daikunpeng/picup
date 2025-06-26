@@ -42,6 +42,16 @@ function setupDatabase(projectPath) {
   `;
   db.exec(createTableSQL);
 
+  // 创建FTS5全文搜索表
+  const createFTSTableSQL = `
+    CREATE VIRTUAL TABLE IF NOT EXISTS photos_fts USING fts5(
+      photoId UNINDEXED,
+      descriptionAI,
+      tokenize='unicode61 remove_diacritics 0'
+    );
+  `;
+  db.exec(createFTSTableSQL);
+
   // 简单的数据库迁移: 检查并为旧版数据库添加新列
   const columns = db.pragma('table_info(photos)');
   const hasTakenAt = columns.some(col => col.name === 'takenAt');
@@ -53,6 +63,23 @@ function setupDatabase(projectPath) {
   if (!hasLocation) db.exec("ALTER TABLE photos ADD COLUMN location TEXT;");
   if (!hasDescriptionAI) db.exec("ALTER TABLE photos ADD COLUMN descriptionAI TEXT;");
   if (!hasStatus) db.exec("ALTER TABLE photos ADD COLUMN status TEXT DEFAULT 'pending';");
+
+  // 填充FTS5表（针对已有的AI描述）
+  try {
+    const existingDescriptions = db.prepare("SELECT photoId, descriptionAI FROM photos WHERE descriptionAI IS NOT NULL AND descriptionAI != ''").all();
+    if (existingDescriptions.length > 0) {
+      const insertFTS = db.prepare("INSERT OR REPLACE INTO photos_fts(photoId, descriptionAI) VALUES (?, ?)");
+      const transaction = db.transaction(() => {
+        existingDescriptions.forEach(({ photoId, descriptionAI }) => {
+          insertFTS.run(photoId, descriptionAI);
+        });
+      });
+      transaction();
+      console.log(`[DEBUG] 已将 ${existingDescriptions.length} 条现有描述同步到FTS5表`);
+    }
+  } catch (error) {
+    console.error('[DEBUG] 填充FTS5表时出错:', error);
+  }
 }
 
 /**
@@ -246,8 +273,14 @@ async function processQueue() {
     const description = await generateDescription(filePath);
     console.log(`[DEBUG] AI description result for photoId=${photoId}:`, description);
     if (description) {
-      db.prepare("UPDATE photos SET descriptionAI = ?, status = 'completed' WHERE photoId = ?").run(description, photoId);
-      console.log(`[DEBUG] Set status=completed, descriptionAI updated for photoId=${photoId}`);
+      // 使用事务确保数据一致性
+      const updateTransaction = db.transaction(() => {
+        db.prepare("UPDATE photos SET descriptionAI = ?, status = 'completed' WHERE photoId = ?").run(description, photoId);
+        // 更新FTS5索引
+        db.prepare("INSERT OR REPLACE INTO photos_fts(photoId, descriptionAI) VALUES (?, ?)").run(photoId, description);
+      });
+      updateTransaction();
+      console.log(`[DEBUG] Set status=completed, descriptionAI and FTS index updated for photoId=${photoId}`);
     } else {
       db.prepare("UPDATE photos SET status = 'failed' WHERE photoId = ?").run(photoId);
       console.log(`[DEBUG] Set status=failed for photoId=${photoId}`);
@@ -411,3 +444,111 @@ ipcMain.handle('save-settings', (event, settings) => {
   store.set('apiKey', settings.apiKey);
   store.set('endpointUrl', settings.endpointUrl);
 }); 
+
+// 获取照片更新状态
+ipcMain.handle('get-photos-status', () => {
+  if (!db) return [];
+  try {
+    const rows = db.prepare('SELECT photoId, filePath, descriptionAI, status FROM photos ORDER BY createdAt DESC').all();
+    return rows;
+  } catch (error) {
+    console.error('[DEBUG] Error getting photos status:', error);
+    return [];
+  }
+});
+
+// 调试：获取数据库中的描述数据
+ipcMain.handle('debug-get-descriptions', () => {
+  if (!db) return [];
+  try {
+    const descriptions = db.prepare('SELECT photoId, descriptionAI FROM photos WHERE descriptionAI IS NOT NULL AND descriptionAI != ""').all();
+    console.log('[DEBUG] Database descriptions:');
+    descriptions.forEach((desc, index) => {
+      console.log(`[DEBUG] ${index + 1}. PhotoID ${desc.photoId}: "${desc.descriptionAI}"`);
+      // 检查每个字符的编码
+      const chars = Array.from(desc.descriptionAI);
+      console.log(`[DEBUG]   Length: ${chars.length}, First 5 chars: ${chars.slice(0, 5).map(c => `${c}(${c.charCodeAt(0)})`).join(', ')}`);
+    });
+    return descriptions;
+  } catch (error) {
+    console.error('[DEBUG] Error getting descriptions:', error);
+    return [];
+  }
+});
+
+// 搜索照片描述
+ipcMain.handle('search-photos', (event, searchQuery) => {
+  if (!db) return [];
+  try {
+    if (!searchQuery || searchQuery.trim() === '') {
+      // 空搜索返回所有照片
+      const rows = db.prepare('SELECT photoId, filePath, descriptionAI, status FROM photos ORDER BY createdAt DESC').all();
+      return rows;
+    }
+
+    // 调试：检查数据库中的数据
+    const allDescriptions = db.prepare('SELECT photoId, descriptionAI FROM photos WHERE descriptionAI IS NOT NULL LIMIT 3').all();
+    console.log('[DEBUG] Sample descriptions from DB:');
+    allDescriptions.forEach(desc => {
+      // 使用JSON.stringify确保正确显示Unicode字符
+      console.log(`  PhotoID ${desc.photoId}: ${JSON.stringify(desc.descriptionAI)}`);
+    });
+
+    // 搜索策略：先用LIKE（更可靠），再尝试FTS5
+    let rows = [];
+    
+    // 策略1：使用LIKE搜索（最可靠）
+    const likeSearchSQL = `
+      SELECT photoId, filePath, descriptionAI, status, descriptionAI as highlightedDescription
+      FROM photos 
+      WHERE descriptionAI LIKE ? AND descriptionAI IS NOT NULL
+      ORDER BY createdAt DESC
+    `;
+    
+    const likeQuery = `%${searchQuery}%`;
+    console.log(`[DEBUG] LIKE search for: ${JSON.stringify(likeQuery)}`);
+    rows = db.prepare(likeSearchSQL).all(likeQuery);
+    console.log(`[DEBUG] LIKE search results: ${rows.length}`);
+    
+    // 如果LIKE搜索没有结果，尝试FTS5
+    if (rows.length === 0) {
+      try {
+        const ftsSearchSQL = `
+          SELECT p.photoId, p.filePath, p.descriptionAI, p.status,
+                 snippet(photos_fts, 1, '<mark>', '</mark>', '...', 32) as highlightedDescription
+          FROM photos_fts 
+          JOIN photos p ON photos_fts.photoId = p.photoId
+          WHERE photos_fts MATCH ?
+          ORDER BY rank
+        `;
+        
+        console.log(`[DEBUG] Trying FTS5 search for: ${JSON.stringify(searchQuery)}`);
+        rows = db.prepare(ftsSearchSQL).all(searchQuery);
+        console.log(`[DEBUG] FTS5 search results: ${rows.length}`);
+      } catch (ftsError) {
+        console.log(`[DEBUG] FTS5 search failed: ${ftsError.message}`);
+      }
+    } else {
+      // 为LIKE搜索结果添加简单的高亮
+      rows = rows.map(row => ({
+        ...row,
+        highlightedDescription: row.descriptionAI.replace(
+          new RegExp(`(${searchQuery})`, 'gi'), 
+          '<mark>$1</mark>'
+        )
+      }));
+    }
+    
+    if (rows.length > 0) {
+      console.log('[DEBUG] First result:', JSON.stringify(rows[0]));
+    }
+    
+    return rows;
+  } catch (error) {
+    console.error('[DEBUG] Error searching photos:', error);
+    console.error('[DEBUG] Error details:', error.message);
+    // 搜索出错时返回所有照片
+    const rows = db.prepare('SELECT photoId, filePath, descriptionAI, status FROM photos ORDER BY createdAt DESC').all();
+    return rows;
+  }
+});

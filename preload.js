@@ -16,4 +16,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
   getApiConfig: () => ipcRenderer.invoke('get-api-config'),
   setApiConfig: (config) => ipcRenderer.invoke('set-api-config', config),
+
+  // 实时状态更新
+  getPhotosStatus: () => ipcRenderer.invoke('get-photos-status'),
+
+  // 搜索功能
+  searchPhotos: (query) => ipcRenderer.invoke('search-photos', query),
+
+  // 调试功能
+  debugGetDescriptions: () => ipcRenderer.invoke('debug-get-descriptions'),
 }); 

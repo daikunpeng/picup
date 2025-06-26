@@ -62,16 +62,26 @@
     }
     #image-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-      gap: 10px;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 15px;
       padding: 10px;
+    }
+    .image-item {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      overflow: hidden;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .image-item:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.15);
     }
     .image-container {
       position: relative;
       width: 100%;
-      padding-top: 100%; /* 1:1 Aspect Ratio */
+      padding-top: 75%; /* 4:3 Aspect Ratio */
       overflow: hidden;
-      border-radius: 8px;
     }
     .image-container img {
       position: absolute;
@@ -84,6 +94,90 @@
     }
     .image-container:hover img {
       transform: scale(1.05);
+    }
+    .description-area {
+      padding: 12px;
+      min-height: 60px;
+      background: #f8f9fa;
+      border-top: 1px solid #e9ecef;
+    }
+    .description-text {
+      font-size: 14px;
+      line-height: 1.4;
+      color: #495057;
+      margin: 0;
+      word-wrap: break-word;
+    }
+    .description-status {
+      font-size: 12px;
+      color: #6c757d;
+      font-style: italic;
+      margin: 0;
+    }
+    .description-status.processing {
+      color: #007bff;
+    }
+    .description-status.failed {
+      color: #dc3545;
+    }
+    .description-status.completed {
+      color: #28a745;
+    }
+    #search-container {
+      max-width: 600px;
+      margin: 0 auto 20px auto;
+      padding: 0 20px;
+    }
+    #search-box {
+      display: flex;
+      align-items: center;
+      background: white;
+      border: 2px solid #e9ecef;
+      border-radius: 25px;
+      padding: 8px 15px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    #search-box:focus-within {
+      border-color: #007bff;
+      box-shadow: 0 2px 8px rgba(0,123,255,0.25);
+    }
+    #search-input {
+      flex: 1;
+      border: none;
+      outline: none;
+      font-size: 16px;
+      padding: 5px 10px;
+      background: transparent;
+    }
+    #search-btn, #clear-search-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      padding: 5px 8px;
+      color: #6c757d;
+      transition: color 0.3s;
+    }
+    #search-btn:hover, #clear-search-btn:hover {
+      color: #007bff;
+    }
+    #search-results-info {
+      text-align: center;
+      margin-top: 10px;
+      color: #6c757d;
+      font-size: 14px;
+    }
+    .search-highlight {
+      background-color: #fff3cd;
+      padding: 2px 4px;
+      border-radius: 3px;
+    }
+    mark {
+      background-color: #ffeb3b;
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-weight: bold;
     }
     #settings-container {
       position: absolute;
@@ -113,36 +207,7 @@
       font-weight: bold;
       border-radius: 8px;
     }
-    .tooltip {
-      visibility: hidden;
-      width: 200px;
-      background-color: #555;
-      color: #fff;
-      text-align: center;
-      border-radius: 6px;
-      padding: 5px 0;
-      position: absolute;
-      z-index: 1;
-      bottom: 110%;
-      left: 50%;
-      margin-left: -100px;
-      opacity: 0;
-      transition: opacity 0.3s;
-    }
-    .tooltip::after {
-      content: "";
-      position: absolute;
-      top: 100%;
-      left: 50%;
-      margin-left: -5px;
-      border-width: 5px;
-      border-style: solid;
-      border-color: #555 transparent transparent transparent;
-    }
-    .image-container:hover .tooltip {
-      visibility: visible;
-      opacity: 1;
-    }
+
   </style>
 </head>
 <body>
@@ -163,6 +228,15 @@
     <button id="select-project-btn">创建/选择工程文件夹</button>
     <button id="import-folder-btn" disabled>导入文件夹</button>
     <button id="import-single-file-btn" disabled>导入单张照片</button>
+  </div>
+
+  <div id="search-container" class="hidden">
+    <div id="search-box">
+      <input type="text" id="search-input" placeholder="搜索照片描述..." />
+      <button id="search-btn" type="button">🔍</button>
+      <button id="clear-search-btn" type="button">✕</button>
+    </div>
+    <div id="search-results-info"></div>
   </div>
   
   <main>
