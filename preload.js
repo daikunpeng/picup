@@ -25,4 +25,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 调试功能
   debugGetDescriptions: () => ipcRenderer.invoke('debug-get-descriptions'),
+
+  // 描述编辑功能
+  updatePhotoDescription: (photoId, newDescription) => ipcRenderer.invoke('update-photo-description', photoId, newDescription),
+  restoreAiDescription: (photoId) => ipcRenderer.invoke('restore-ai-description', photoId),
 }); 

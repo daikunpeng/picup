@@ -58,11 +58,15 @@ function setupDatabase(projectPath) {
   const hasLocation = columns.some(col => col.name === 'location');
   const hasDescriptionAI = columns.some(col => col.name === 'descriptionAI');
   const hasStatus = columns.some(col => col.name === 'status');
+  const hasIsEdited = columns.some(col => col.name === 'isEdited');
+  const hasDescriptionOriginal = columns.some(col => col.name === 'descriptionOriginal');
 
   if (!hasTakenAt) db.exec("ALTER TABLE photos ADD COLUMN takenAt TEXT;");
   if (!hasLocation) db.exec("ALTER TABLE photos ADD COLUMN location TEXT;");
   if (!hasDescriptionAI) db.exec("ALTER TABLE photos ADD COLUMN descriptionAI TEXT;");
   if (!hasStatus) db.exec("ALTER TABLE photos ADD COLUMN status TEXT DEFAULT 'pending';");
+  if (!hasIsEdited) db.exec("ALTER TABLE photos ADD COLUMN isEdited BOOLEAN DEFAULT FALSE;");
+  if (!hasDescriptionOriginal) db.exec("ALTER TABLE photos ADD COLUMN descriptionOriginal TEXT;");
 
   // 填充FTS5表（针对已有的AI描述）
   try {
@@ -312,7 +316,7 @@ ipcMain.handle('get-initial-data', () => {
   const projectPath = store.get('projectPath');
   if (projectPath && fs.existsSync(projectPath)) {
     setupDatabase(projectPath);
-    const rows = db.prepare('SELECT photoId, filePath, descriptionAI, status FROM photos ORDER BY createdAt DESC').all();
+    const rows = db.prepare('SELECT photoId, filePath, descriptionAI, status, isEdited, descriptionOriginal FROM photos ORDER BY createdAt DESC').all();
     // 只获取需要处理的图片ID
     const pendingPhotoIds = db.prepare("SELECT photoId FROM photos WHERE status = 'pending' OR status = 'failed'").all().map(r => r.photoId);
     if (pendingPhotoIds.length > 0) {
@@ -336,7 +340,7 @@ ipcMain.handle('select-project-folder', async () => {
   store.set('projectPath', projectPath);
   
   setupDatabase(projectPath);
-  const rows = db.prepare('SELECT photoId, filePath, descriptionAI, status FROM photos ORDER BY createdAt DESC').all();
+  const rows = db.prepare('SELECT photoId, filePath, descriptionAI, status, isEdited, descriptionOriginal FROM photos ORDER BY createdAt DESC').all();
   // 只获取需要处理的图片ID
   const pendingPhotoIds = db.prepare("SELECT photoId FROM photos WHERE status = 'pending' OR status = 'failed'").all().map(r => r.photoId);
   if (pendingPhotoIds.length > 0) {
@@ -449,7 +453,7 @@ ipcMain.handle('save-settings', (event, settings) => {
 ipcMain.handle('get-photos-status', () => {
   if (!db) return [];
   try {
-    const rows = db.prepare('SELECT photoId, filePath, descriptionAI, status FROM photos ORDER BY createdAt DESC').all();
+    const rows = db.prepare('SELECT photoId, filePath, descriptionAI, status, isEdited, descriptionOriginal FROM photos ORDER BY createdAt DESC').all();
     return rows;
   } catch (error) {
     console.error('[DEBUG] Error getting photos status:', error);
@@ -476,13 +480,74 @@ ipcMain.handle('debug-get-descriptions', () => {
   }
 });
 
+// 更新照片描述（用户编辑）
+ipcMain.handle('update-photo-description', async (event, photoId, newDescription) => {
+  if (!db) return { success: false, error: 'Database not initialized' };
+  
+  try {
+    const updateTransaction = db.transaction(() => {
+      // 检查是否首次编辑，如果是则保存原始AI描述
+      const photo = db.prepare('SELECT descriptionAI, isEdited FROM photos WHERE photoId = ?').get(photoId);
+      
+      if (photo && !photo.isEdited && photo.descriptionAI) {
+        // 首次编辑，保存原始描述
+        db.prepare('UPDATE photos SET descriptionOriginal = ? WHERE photoId = ?').run(photo.descriptionAI, photoId);
+        console.log(`[DEBUG] Saved original description for photoId=${photoId}`);
+      }
+      
+      // 更新描述和编辑状态
+      db.prepare('UPDATE photos SET descriptionAI = ?, isEdited = TRUE WHERE photoId = ?').run(newDescription, photoId);
+      
+      // 更新FTS5索引
+      db.prepare('INSERT OR REPLACE INTO photos_fts(photoId, descriptionAI) VALUES (?, ?)').run(photoId, newDescription);
+      
+      console.log(`[DEBUG] Updated description for photoId=${photoId}, isEdited=true`);
+    });
+    
+    updateTransaction();
+    return { success: true };
+  } catch (error) {
+    console.error('[DEBUG] Error updating photo description:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// 恢复AI原始描述
+ipcMain.handle('restore-ai-description', async (event, photoId) => {
+  if (!db) return { success: false, error: 'Database not initialized' };
+  
+  try {
+    const photo = db.prepare('SELECT descriptionOriginal, isEdited FROM photos WHERE photoId = ?').get(photoId);
+    
+    if (!photo || !photo.isEdited || !photo.descriptionOriginal) {
+      return { success: false, error: 'No original description to restore' };
+    }
+    
+    const restoreTransaction = db.transaction(() => {
+      // 恢复原始描述
+      db.prepare('UPDATE photos SET descriptionAI = ?, isEdited = FALSE WHERE photoId = ?').run(photo.descriptionOriginal, photoId);
+      
+      // 更新FTS5索引
+      db.prepare('INSERT OR REPLACE INTO photos_fts(photoId, descriptionAI) VALUES (?, ?)').run(photoId, photo.descriptionOriginal);
+      
+      console.log(`[DEBUG] Restored original description for photoId=${photoId}`);
+    });
+    
+    restoreTransaction();
+    return { success: true };
+  } catch (error) {
+    console.error('[DEBUG] Error restoring AI description:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // 搜索照片描述
 ipcMain.handle('search-photos', (event, searchQuery) => {
   if (!db) return [];
   try {
     if (!searchQuery || searchQuery.trim() === '') {
       // 空搜索返回所有照片
-      const rows = db.prepare('SELECT photoId, filePath, descriptionAI, status FROM photos ORDER BY createdAt DESC').all();
+      const rows = db.prepare('SELECT photoId, filePath, descriptionAI, status, isEdited, descriptionOriginal FROM photos ORDER BY createdAt DESC').all();
       return rows;
     }
 
@@ -499,7 +564,7 @@ ipcMain.handle('search-photos', (event, searchQuery) => {
     
     // 策略1：使用LIKE搜索（最可靠）
     const likeSearchSQL = `
-      SELECT photoId, filePath, descriptionAI, status, descriptionAI as highlightedDescription
+      SELECT photoId, filePath, descriptionAI, status, isEdited, descriptionOriginal, descriptionAI as highlightedDescription
       FROM photos 
       WHERE descriptionAI LIKE ? AND descriptionAI IS NOT NULL
       ORDER BY createdAt DESC
@@ -514,7 +579,7 @@ ipcMain.handle('search-photos', (event, searchQuery) => {
     if (rows.length === 0) {
       try {
         const ftsSearchSQL = `
-          SELECT p.photoId, p.filePath, p.descriptionAI, p.status,
+          SELECT p.photoId, p.filePath, p.descriptionAI, p.status, p.isEdited, p.descriptionOriginal,
                  snippet(photos_fts, 1, '<mark>', '</mark>', '...', 32) as highlightedDescription
           FROM photos_fts 
           JOIN photos p ON photos_fts.photoId = p.photoId
@@ -548,7 +613,7 @@ ipcMain.handle('search-photos', (event, searchQuery) => {
     console.error('[DEBUG] Error searching photos:', error);
     console.error('[DEBUG] Error details:', error.message);
     // 搜索出错时返回所有照片
-    const rows = db.prepare('SELECT photoId, filePath, descriptionAI, status FROM photos ORDER BY createdAt DESC').all();
+    const rows = db.prepare('SELECT photoId, filePath, descriptionAI, status, isEdited, descriptionOriginal FROM photos ORDER BY createdAt DESC').all();
     return rows;
   }
 });

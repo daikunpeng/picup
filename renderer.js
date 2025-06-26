@@ -77,8 +77,14 @@ window.addEventListener('DOMContentLoaded', () => {
             descriptionArea.className = 'description-area';
 
             if (photo.status === 'completed' && photo.descriptionAI) {
+                // 描述内容容器
+                const descriptionContent = document.createElement('div');
+                descriptionContent.className = 'description-content';
+                descriptionContent.dataset.photoId = photo.photoId;
+
+                // 描述文本（可编辑）
                 const descriptionText = document.createElement('p');
-                descriptionText.className = 'description-text';
+                descriptionText.className = 'description-text editable';
                 
                 // 如果是搜索结果且有高亮文本，使用高亮版本
                 if (isSearchResult && photo.highlightedDescription) {
@@ -87,7 +93,43 @@ window.addEventListener('DOMContentLoaded', () => {
                     descriptionText.textContent = photo.descriptionAI;
                 }
                 
-                descriptionArea.appendChild(descriptionText);
+                // 描述元信息和控制按钮
+                const descriptionMeta = document.createElement('div');
+                descriptionMeta.className = 'description-meta';
+                
+                // 编辑状态指示器
+                if (photo.isEdited) {
+                    const editIndicator = document.createElement('span');
+                    editIndicator.className = 'edit-indicator';
+                    editIndicator.textContent = '✏️ 已编辑';
+                    descriptionMeta.appendChild(editIndicator);
+                }
+                
+                // 编辑按钮
+                const editBtn = document.createElement('button');
+                editBtn.className = 'edit-btn';
+                editBtn.textContent = '编辑';
+                editBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    startEditDescription(photo.photoId, photo.descriptionAI);
+                };
+                descriptionMeta.appendChild(editBtn);
+                
+                // 恢复AI原文按钮（仅对编辑过的描述显示）
+                if (photo.isEdited && photo.descriptionOriginal) {
+                    const restoreBtn = document.createElement('button');
+                    restoreBtn.className = 'restore-btn';
+                    restoreBtn.textContent = '恢复AI原文';
+                    restoreBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        restoreAiDescription(photo.photoId);
+                    };
+                    descriptionMeta.appendChild(restoreBtn);
+                }
+                
+                descriptionContent.appendChild(descriptionText);
+                descriptionContent.appendChild(descriptionMeta);
+                descriptionArea.appendChild(descriptionContent);
             } else {
                 const statusElement = document.createElement('p');
                 statusElement.className = `description-status ${photo.status}`;
@@ -156,6 +198,156 @@ window.addEventListener('DOMContentLoaded', () => {
         isSearching = false;
         displayImages(currentPhotos);
         updateSearchResultsInfo(currentPhotos.length, false);
+    }
+
+    // 开始编辑描述
+    function startEditDescription(photoId, currentDescription) {
+        const descriptionContent = document.querySelector(`[data-photo-id="${photoId}"]`);
+        if (!descriptionContent) return;
+
+        const descriptionText = descriptionContent.querySelector('.description-text');
+        const descriptionMeta = descriptionContent.querySelector('.description-meta');
+        
+        if (!descriptionText || !descriptionMeta) return;
+
+        // 创建编辑文本框
+        const editTextarea = document.createElement('textarea');
+        editTextarea.className = 'description-edit';
+        editTextarea.value = currentDescription;
+        editTextarea.placeholder = '请输入照片描述...';
+
+        // 创建编辑控制按钮
+        const editControls = document.createElement('div');
+        editControls.className = 'edit-controls';
+
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'save-btn';
+        saveBtn.textContent = '💾 保存';
+        saveBtn.onclick = () => saveDescription(photoId, editTextarea.value);
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'cancel-btn';
+        cancelBtn.textContent = '❌ 取消';
+        cancelBtn.onclick = () => cancelEdit(photoId);
+
+        const charCount = document.createElement('span');
+        charCount.className = 'char-count';
+        charCount.textContent = `${editTextarea.value.length} 字符`;
+
+        // 字符计数更新
+        editTextarea.addEventListener('input', () => {
+            charCount.textContent = `${editTextarea.value.length} 字符`;
+        });
+
+        // 键盘快捷键
+        editTextarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                cancelEdit(photoId);
+            } else if (e.key === 'Enter' && e.ctrlKey) {
+                saveDescription(photoId, editTextarea.value);
+            }
+        });
+
+        editControls.appendChild(saveBtn);
+        editControls.appendChild(cancelBtn);
+        editControls.appendChild(charCount);
+
+        // 隐藏原始内容，显示编辑界面
+        descriptionText.style.display = 'none';
+        descriptionMeta.style.display = 'none';
+        
+        descriptionContent.appendChild(editTextarea);
+        descriptionContent.appendChild(editControls);
+        descriptionContent.classList.add('editing');
+
+        // 聚焦并选中文本
+        editTextarea.focus();
+        editTextarea.select();
+
+        console.log(`[UI] Started editing description for photoId=${photoId}`);
+    }
+
+    // 保存描述
+    async function saveDescription(photoId, newDescription) {
+        if (!newDescription.trim()) {
+            alert('描述内容不能为空');
+            return;
+        }
+
+        try {
+            const result = await window.electronAPI.updatePhotoDescription(photoId, newDescription.trim());
+            if (result.success) {
+                console.log(`[UI] Description saved for photoId=${photoId}`);
+                // 重新获取数据以更新界面
+                await refreshCurrentView();
+            } else {
+                console.error('[UI] Failed to save description:', result.error);
+                alert('保存失败: ' + result.error);
+            }
+        } catch (error) {
+            console.error('[UI] Error saving description:', error);
+            alert('保存失败: ' + error.message);
+        }
+    }
+
+    // 取消编辑
+    function cancelEdit(photoId) {
+        const descriptionContent = document.querySelector(`[data-photo-id="${photoId}"]`);
+        if (!descriptionContent) return;
+
+        // 移除编辑元素
+        const editTextarea = descriptionContent.querySelector('.description-edit');
+        const editControls = descriptionContent.querySelector('.edit-controls');
+        
+        if (editTextarea) editTextarea.remove();
+        if (editControls) editControls.remove();
+
+        // 恢复原始显示
+        const descriptionText = descriptionContent.querySelector('.description-text');
+        const descriptionMeta = descriptionContent.querySelector('.description-meta');
+        
+        if (descriptionText) descriptionText.style.display = '';
+        if (descriptionMeta) descriptionMeta.style.display = '';
+        
+        descriptionContent.classList.remove('editing');
+
+        console.log(`[UI] Cancelled editing for photoId=${photoId}`);
+    }
+
+    // 恢复AI原始描述
+    async function restoreAiDescription(photoId) {
+        if (!confirm('确定要恢复AI原始描述吗？这将丢失您的编辑内容。')) {
+            return;
+        }
+
+        try {
+            const result = await window.electronAPI.restoreAiDescription(photoId);
+            if (result.success) {
+                console.log(`[UI] AI description restored for photoId=${photoId}`);
+                // 重新获取数据以更新界面
+                await refreshCurrentView();
+            } else {
+                console.error('[UI] Failed to restore description:', result.error);
+                alert('恢复失败: ' + result.error);
+            }
+        } catch (error) {
+            console.error('[UI] Error restoring description:', error);
+            alert('恢复失败: ' + error.message);
+        }
+    }
+
+    // 刷新当前视图
+    async function refreshCurrentView() {
+        if (isSearching) {
+            // 如果正在搜索，重新执行搜索
+            await performSearch(currentSearchQuery);
+        } else {
+            // 否则重新获取所有数据
+            const data = await window.electronAPI.getPhotosStatus();
+            currentPhotos = data;
+            displayImages(data);
+            updateSearchResultsInfo(data.length, false);
+        }
     }
 
     // 启动实时更新
