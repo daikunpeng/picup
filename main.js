@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const Store = require('electron-store');
@@ -447,6 +447,17 @@ ipcMain.handle('get-settings', () => {
 ipcMain.handle('save-settings', (event, settings) => {
   store.set('apiKey', settings.apiKey);
   store.set('endpointUrl', settings.endpointUrl);
+});
+
+// 打开外部链接
+ipcMain.handle('open-external', async (event, url) => {
+  try {
+    await shell.openExternal(url);
+    return { success: true };
+  } catch (error) {
+    console.error('[DEBUG] Error opening external URL:', error);
+    return { success: false, error: error.message };
+  }
 }); 
 
 // 获取照片更新状态

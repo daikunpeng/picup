@@ -2,64 +2,260 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>设置</title>
+    <title>AI服务配置 - PicUp智能相册</title>
     <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';">
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             padding: 20px;
             background-color: #f8f9fa;
+            line-height: 1.6;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #333;
+            margin: 0;
+            font-size: 24px;
+        }
+        .header p {
+            color: #666;
+            margin: 5px 0 0 0;
+            font-size: 14px;
+        }
+        .intro-section {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px 20px;
+            margin-bottom: 25px;
+            border-radius: 0 4px 4px 0;
+        }
+        .intro-section h3 {
+            color: #1976d2;
+            margin: 0 0 10px 0;
+            font-size: 16px;
+        }
+        .intro-section p {
+            color: #333;
+            margin: 8px 0;
+            font-size: 14px;
+        }
+        .config-section {
+            background: white;
+            border-radius: 8px;
+            padding: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
         }
         .form-group {
-            margin-bottom: 15px;
+            margin-bottom: 20px;
         }
         label {
             display: block;
-            margin-bottom: 5px;
+            margin-bottom: 8px;
             font-weight: bold;
+            color: #333;
         }
         input {
             width: 100%;
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            box-sizing: border-box; /* 保证 padding 不会影响总宽度 */
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        input:focus {
+            outline: none;
+            border-color: #2196f3;
+        }
+        .help-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .privacy-section {
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+            padding: 15px 20px;
+            margin-bottom: 25px;
+            border-radius: 0 4px 4px 0;
+        }
+        .privacy-section h3 {
+            color: #ef6c00;
+            margin: 0 0 10px 0;
+            font-size: 16px;
+        }
+        .privacy-section ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .privacy-section li {
+            color: #333;
+            font-size: 14px;
+            margin: 5px 0;
         }
         .actions {
-            text-align: right;
-            margin-top: 20px;
+            text-align: center;
+            margin-top: 30px;
         }
         button {
-            padding: 8px 15px;
+            padding: 12px 30px;
             border: none;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background-color 0.3s;
         }
         #save-btn {
-            background-color: #28a745;
+            background-color: #4caf50;
             color: white;
         }
+        #save-btn:hover {
+            background-color: #45a049;
+        }
+        #save-btn:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
         #status {
-            margin-top: 10px;
-            color: green;
+            margin-top: 15px;
+            text-align: center;
+            padding: 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        #status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        #status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .steps-section {
+            background: #f5f5f5;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .steps-section h3 {
+            color: #333;
+            margin: 0 0 15px 0;
+            font-size: 16px;
+        }
+        .step {
+            display: flex;
+            align-items: flex-start;
+            margin: 10px 0;
+        }
+        .step-number {
+            background: #2196f3;
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            margin-right: 10px;
+            flex-shrink: 0;
+        }
+        .step-content {
+            color: #333;
+            font-size: 14px;
+        }
+        .link {
+            color: #2196f3;
+            text-decoration: none;
+        }
+        .link:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
 <body>
-    <h2>AI 服务配置</h2>
-
-    <div class="form-group">
-        <label for="api-key">API Key</label>
-        <input type="password" id="api-key" placeholder="请输入你的 API Key">
+    <div class="header">
+        <h1>🤖 AI服务配置</h1>
+        <p>配置AI服务以启用智能照片描述功能</p>
     </div>
 
-    <div class="form-group">
-        <label for="endpoint-url">Endpoint URL</label>
-        <input type="text" id="endpoint-url" placeholder="请输入服务的 Endpoint 地址 (可选)">
+    <div class="intro-section">
+        <h3>📖 功能说明</h3>
+        <p>PicUp使用AI视觉模型为您的照片自动生成中文描述，让您可以通过自然语言快速搜索照片内容。</p>
+        <p>为了使用此功能，您需要配置一个AI服务提供商的API密钥。</p>
+    </div>
+
+    <div class="steps-section">
+        <h3>🔑 如何获取API密钥</h3>
+        <div class="step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+                访问 <a href="#" class="link" onclick="openMoonshotSite()">Moonshot AI官网</a> 并注册账户
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+                登录后进入控制台，创建新的API密钥
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+                复制生成的API密钥并粘贴到下方配置中
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-number">4</div>
+            <div class="step-content">
+                点击保存，开始体验智能照片描述功能！
+            </div>
+        </div>
+    </div>
+
+    <div class="config-section">
+        <h3>⚙️ API配置</h3>
+        
+        <div class="form-group">
+            <label for="api-key">🔐 API Key *</label>
+            <input type="password" id="api-key" placeholder="请输入您的Moonshot AI API Key">
+            <div class="help-text">
+                您的API密钥将安全存储在本地，不会上传到任何服务器
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="endpoint-url">🌐 API端点 (可选)</label>
+            <input type="text" id="endpoint-url" placeholder="https://api.moonshot.cn/v1/chat/completions">
+            <div class="help-text">
+                如需自定义API端点，请输入完整URL。留空则使用默认的Moonshot AI端点
+            </div>
+        </div>
+    </div>
+
+    <div class="privacy-section">
+        <h3>🔒 隐私与安全须知</h3>
+        <ul>
+            <li><strong>数据处理：</strong>您的照片将被发送到AI服务商进行分析，生成描述后立即删除</li>
+            <li><strong>本地存储：</strong>API密钥和生成的描述仅存储在您的本地设备上</li>
+            <li><strong>费用说明：</strong>使用AI服务可能产生费用，请查看您选择的服务商的计费标准</li>
+            <li><strong>网络连接：</strong>此功能需要稳定的网络连接才能正常工作</li>
+            <li><strong>服务条款：</strong>使用前请阅读并同意AI服务提供商的服务条款</li>
+        </ul>
     </div>
 
     <div class="actions">
-        <button id="save-btn">保存</button>
+        <button id="save-btn">💾 保存配置</button>
     </div>
     
     <div id="status"></div>

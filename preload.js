@@ -29,4 +29,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 描述编辑功能
   updatePhotoDescription: (photoId, newDescription) => ipcRenderer.invoke('update-photo-description', photoId, newDescription),
   restoreAiDescription: (photoId) => ipcRenderer.invoke('restore-ai-description', photoId),
+
+  // 系统功能
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
 }); 

@@ -153,6 +153,15 @@ window.addEventListener('DOMContentLoaded', () => {
             currentPhotos = photos; // 更新缓存
             displayImages(photos);
             updateSearchResultsInfo(photos.length, false);
+            
+            // 显示空状态指导
+            showEmptyStateGuide();
+            
+            // 延迟显示API配置提示
+            setTimeout(() => {
+                showApiConfigPrompt();
+            }, 1000);
+            
             startRealTimeUpdate(); // 启动实时更新
         } else {
             currentProjectSpan.textContent = '未选择';
@@ -350,6 +359,88 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // 显示API配置提示
+    async function showApiConfigPrompt() {
+        const config = await window.electronAPI.getApiConfig();
+        if (!config || !config.apiKey) {
+            const promptDiv = document.createElement('div');
+            promptDiv.className = 'api-config-prompt';
+            promptDiv.innerHTML = `
+                <div class="prompt-content">
+                    <h3>🤖 启用AI智能功能</h3>
+                    <p>配置AI服务来自动生成照片描述，让您可以通过自然语言搜索照片！</p>
+                    <button onclick="openApiConfig()" class="config-btn">⚙️ 立即配置</button>
+                    <button onclick="dismissPrompt()" class="dismiss-btn">稍后配置</button>
+                </div>
+            `;
+            
+            // 在主容器顶部插入提示
+            const body = document.body;
+            const toolbar = document.querySelector('.toolbar');
+            if (body && toolbar) {
+                body.insertBefore(promptDiv, toolbar.nextSibling);
+            }
+        }
+    }
+
+    // 打开API配置窗口
+    function openApiConfig() {
+        window.electronAPI.openSettingsWindow();
+    }
+
+    // 关闭配置提示
+    function dismissPrompt() {
+        const prompt = document.querySelector('.api-config-prompt');
+        if (prompt) {
+            prompt.remove();
+        }
+    }
+
+    // 显示空状态指导
+    function showEmptyStateGuide() {
+        if (currentPhotos.length === 0) {
+            const guideDiv = document.createElement('div');
+            guideDiv.className = 'empty-state-guide';
+            guideDiv.innerHTML = `
+                <div class="guide-content">
+                    <div class="guide-icon">📷</div>
+                    <h2>欢迎使用 PicUp 智能相册</h2>
+                    <p>开始您的智能相册之旅，让AI帮您管理和搜索照片！</p>
+                    <div class="guide-steps">
+                        <div class="guide-step">
+                            <span class="step-number">1</span>
+                            <span class="step-text">选择或创建工程文件夹</span>
+                        </div>
+                        <div class="guide-step">
+                            <span class="step-number">2</span>
+                            <span class="step-text">导入您的照片</span>
+                        </div>
+                        <div class="guide-step">
+                            <span class="step-number">3</span>
+                            <span class="step-text">配置AI服务</span>
+                        </div>
+                        <div class="guide-step">
+                            <span class="step-number">4</span>
+                            <span class="step-text">享受智能搜索</span>
+                        </div>
+                    </div>
+                    <div class="guide-actions">
+                        <button onclick="document.getElementById('import-folder-btn').click()" class="primary-btn">
+                            📁 导入照片文件夹
+                        </button>
+                        <button onclick="document.getElementById('import-single-file-btn').click()" class="secondary-btn">
+                            🖼️ 导入单张照片
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            if (imageGrid) {
+                imageGrid.appendChild(guideDiv);
+            }
+        }
+    }
+
     // 启动实时更新
     function startRealTimeUpdate() {
         stopRealTimeUpdate(); // 先停止现有的定时器
@@ -391,7 +482,9 @@ window.addEventListener('DOMContentLoaded', () => {
             const newPhoto = newPhotos[i];
             if (oldPhoto.photoId !== newPhoto.photoId || 
                 oldPhoto.status !== newPhoto.status || 
-                oldPhoto.descriptionAI !== newPhoto.descriptionAI) {
+                oldPhoto.descriptionAI !== newPhoto.descriptionAI ||
+                oldPhoto.isEdited !== newPhoto.isEdited ||
+                oldPhoto.descriptionOriginal !== newPhoto.descriptionOriginal) {
                 return true;
             }
         }
@@ -437,10 +530,53 @@ window.addEventListener('DOMContentLoaded', () => {
             descriptionArea.innerHTML = '';
             
             if (photo.status === 'completed' && photo.descriptionAI) {
+                // 描述内容容器
+                const descriptionContent = document.createElement('div');
+                descriptionContent.className = 'description-content';
+                descriptionContent.dataset.photoId = photo.photoId;
+
+                // 描述文本（可编辑）
                 const descriptionText = document.createElement('p');
-                descriptionText.className = 'description-text';
+                descriptionText.className = 'description-text editable';
                 descriptionText.textContent = photo.descriptionAI;
-                descriptionArea.appendChild(descriptionText);
+                
+                // 描述元信息和控制按钮
+                const descriptionMeta = document.createElement('div');
+                descriptionMeta.className = 'description-meta';
+                
+                // 编辑状态指示器
+                if (photo.isEdited) {
+                    const editIndicator = document.createElement('span');
+                    editIndicator.className = 'edit-indicator';
+                    editIndicator.textContent = '✏️ 已编辑';
+                    descriptionMeta.appendChild(editIndicator);
+                }
+                
+                // 编辑按钮
+                const editBtn = document.createElement('button');
+                editBtn.className = 'edit-btn';
+                editBtn.textContent = '编辑';
+                editBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    startEditDescription(photo.photoId, photo.descriptionAI);
+                };
+                descriptionMeta.appendChild(editBtn);
+                
+                // 恢复AI原文按钮（仅对编辑过的描述显示）
+                if (photo.isEdited && photo.descriptionOriginal) {
+                    const restoreBtn = document.createElement('button');
+                    restoreBtn.className = 'restore-btn';
+                    restoreBtn.textContent = '恢复AI原文';
+                    restoreBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        restoreAiDescription(photo.photoId);
+                    };
+                    descriptionMeta.appendChild(restoreBtn);
+                }
+                
+                descriptionContent.appendChild(descriptionText);
+                descriptionContent.appendChild(descriptionMeta);
+                descriptionArea.appendChild(descriptionContent);
             } else {
                 const statusElement = document.createElement('p');
                 statusElement.className = `description-status ${photo.status}`;

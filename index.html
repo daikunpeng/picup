@@ -274,6 +274,130 @@
       border-radius: 8px;
       border: 1px solid #dee2e6;
     }
+
+    /* 用户引导样式 */
+    .api-config-prompt {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 12px;
+      margin: 20px 0;
+      box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+      overflow: hidden;
+    }
+    .prompt-content {
+      padding: 20px;
+      text-align: center;
+    }
+    .prompt-content h3 {
+      margin: 0 0 10px 0;
+      font-size: 18px;
+    }
+    .prompt-content p {
+      margin: 0 0 20px 0;
+      opacity: 0.9;
+    }
+    .config-btn, .dismiss-btn {
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 6px;
+      padding: 8px 16px;
+      margin: 0 5px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .config-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+      border-color: rgba(255, 255, 255, 0.5);
+    }
+    .dismiss-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .empty-state-guide {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 400px;
+      padding: 40px;
+    }
+    .guide-content {
+      text-align: center;
+      max-width: 500px;
+    }
+    .guide-icon {
+      font-size: 64px;
+      margin-bottom: 20px;
+    }
+    .guide-content h2 {
+      color: #333;
+      margin: 0 0 15px 0;
+      font-size: 28px;
+    }
+    .guide-content > p {
+      color: #666;
+      margin: 0 0 30px 0;
+      font-size: 16px;
+      line-height: 1.6;
+    }
+    .guide-steps {
+      margin: 30px 0;
+    }
+    .guide-step {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      margin: 12px 0;
+      text-align: left;
+    }
+    .step-number {
+      background: #007bff;
+      color: white;
+      border-radius: 50%;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      margin-right: 15px;
+      flex-shrink: 0;
+    }
+    .step-text {
+      color: #333;
+      font-size: 14px;
+    }
+    .guide-actions {
+      margin-top: 30px;
+    }
+    .primary-btn, .secondary-btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      margin: 0 8px;
+      transition: all 0.3s;
+    }
+    .primary-btn {
+      background: #007bff;
+      color: white;
+    }
+    .primary-btn:hover {
+      background: #0056b3;
+      transform: translateY(-2px);
+    }
+    .secondary-btn {
+      background: #f8f9fa;
+      color: #333;
+      border: 1px solid #dee2e6;
+    }
+    .secondary-btn:hover {
+      background: #e9ecef;
+      transform: translateY(-2px);
+    }
     #settings-container {
       position: absolute;
       top: 10px;
